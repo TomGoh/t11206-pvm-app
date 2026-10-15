@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">X 内核虚拟机</string>
+    <string name="permission_label">控制 X 内核虚拟机</string>
+
+    <string name="title">X 内核受保护虚拟机</string>
+    <string name="start">启动</string>
+    <string name="stop">停止</string>
+    <string name="recheck">重新核实回收</string>
+    <string name="reconnect">重新连接控制服务</string>
+
+    <string name="state_unavailable">无法启动</string>
+    <string name="state_stopped">已停止</string>
+    <string name="state_starting">启动中</string>
+    <string name="state_running_not_ready">运行中，服务未就绪</string>
+    <string name="state_ready">服务可用</string>
+    <string name="state_stopping">停止中</string>
+    <string name="state_reclaim_unknown">回收失败或状态待核实</string>
+    <string name="state_failed">启动失败或异常退出</string>
+    <string name="state_unknown">未知状态（%1$d）</string>
+    <string name="service_missing">控制服务未运行，无法控制虚拟机。</string>
+    <string name="service_died">与控制服务的连接已断开，虚拟机状态需要重新核实。</string>
+
+    <string name="label_state">状态</string>
+    <string name="label_reason">说明</string>
+    <string name="label_protection">保护模式</string>
+    <string name="label_dice">身份链</string>
+    <string name="label_memory">配置内存</string>
+    <string name="label_cpus">虚拟处理器</string>
+    <string name="label_uptime">运行时长</string>
+    <string name="label_reclaim">上一实例资源回收</string>
+    <string name="label_last_exit">上次结束原因</string>
+
+    <string name="protection_without_firmware">受保护，无客户机固件（镜像未经固件认证）</string>
+    <string name="protection_with_firmware">受保护，经客户机固件启动</string>
+    <string name="protection_none">不受保护</string>
+    <string name="dice_disabled">未启用</string>
+    <string name="dice_enabled">已启用</string>
+    <string name="memory_value">%1$d MiB（配置值，不是实际占用）</string>
+    <string name="cpus_value">%1$d 个</string>
+    <string name="reclaim_confirmed">已确认</string>
+    <string name="reclaim_unconfirmed">未确认</string>
+    <string name="none">无</string>
+    <string name="exit_stopped">按请求停止</string>
+    <string name="exit_guest_shutdown">客户机自行关机</string>
+    <string name="exit_killed">虚拟机进程被外部终止</string>
+    <string name="not_ready_no_probe">未配置就绪握手，不会显示为服务可用</string>
+
+    <string name="error_unavailable">无法启动：%1$s</string>
+    <string name="error_busy">正在执行相反的操作，请稍后再试：%1$s</string>
+    <string name="error_reclaim_pending">上一实例尚未确认回收，请先停止并核实：%1$s</string>
+    <string name="error_security">没有控制权限：%1$s</string>
+    <string name="error_other">请求失败：%1$s</string>
+</resources>

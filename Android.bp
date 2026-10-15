@@ -1,0 +1,24 @@
+// Copyright 2026 KylinSoft Co., Ltd.
+// SPDX-License-Identifier: Apache-2.0
+//
+// The x-kernel VM control app: starts and stops the x-kernel VM through the control service and
+// shows its real state. It holds no VM itself, so leaving or killing the app changes nothing.
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+android_app {
+    name: "XKernelVmControl",
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
+    manifest: "AndroidManifest.xml",
+    // ServiceManager is a platform API; the control permission is a signature permission.
+    platform_apis: true,
+    certificate: "platform",
+    system_ext_specific: true,
+    static_libs: ["com.kylinos.xkernelvm-java"],
+    optimize: {
+        enabled: false,
+    },
+}
