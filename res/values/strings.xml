@@ -51,4 +51,22 @@
     <string name="error_reclaim_pending">上一实例尚未确认回收，请先停止并核实：%1$s</string>
     <string name="error_security">没有控制权限：%1$s</string>
     <string name="error_other">请求失败：%1$s</string>
+
+    <string name="console_title_none">x-kernel 控制台：还没有启动过实例</string>
+    <string name="console_title_running">x-kernel 控制台：实例 %1$d</string>
+    <string name="console_title_ended">x-kernel 控制台：实例 %1$d 已结束，下面是它的输出</string>
+    <string name="console_title_disconnected">x-kernel 控制台：未连接控制服务</string>
+    <string name="console_hint">输入命令，回车发送</string>
+    <string name="console_hint_not_running">虚拟机运行时才能输入</string>
+    <string name="send">发送</string>
+    <string name="key_ctrl_c">Ctrl-C</string>
+    <string name="key_tab">Tab</string>
+    <string name="key_up">↑</string>
+    <string name="key_down">↓</string>
+    <string name="key_ctrl_d">Ctrl-D</string>
+    <string name="key_clear">清屏</string>
+    <string name="console_not_running">虚拟机没有在运行，输入没有发出。</string>
+    <string name="console_busy">客户机还没有读完之前的输入，这次输入没有全部发出：%1$s</string>
+    <string name="console_failed">输入发送失败：%1$s</string>
+    <string name="console_attach_failed">无法连接控制台：%1$s</string>
 </resources>

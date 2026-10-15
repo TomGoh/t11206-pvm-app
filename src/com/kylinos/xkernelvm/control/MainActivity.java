@@ -6,6 +6,7 @@
 package com.kylinos.xkernelvm.control;
 
 import android.app.Activity;
+import android.graphics.Insets;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -15,15 +16,26 @@ import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.kylinos.xkernelvm.ConsoleOutput;
 import com.kylinos.xkernelvm.IXKernelVmCallback;
+import com.kylinos.xkernelvm.IXKernelVmConsoleCallback;
 import com.kylinos.xkernelvm.IXKernelVmControl;
 import com.kylinos.xkernelvm.VmState;
 import com.kylinos.xkernelvm.VmStatus;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,10 +50,19 @@ import java.util.concurrent.Executors;
  * unsubscribes when it is not; it never polls. The only timer is the local uptime display.
  * Snapshots carry the service session and a sequence number, so a late or duplicate callback
  * never overwrites a newer state.
+ *
+ * <p>The bottom half is the guest's serial console, which the service keeps: attaching returns
+ * the output kept so far, and later output arrives addressed by instance and offset, so a
+ * duplicate is dropped and a gap makes the app attach again. Input goes to the guest as typed
+ * (a line is sent with a newline); the guest echoes it. Input is only enabled while the VM runs;
+ * the output of an instance that ended stays visible until the next start.
  */
 public class MainActivity extends Activity {
     private static final String TAG = "XKernelVmControl";
     private static final String SERVICE_NAME = "com.kylinos.xkernelvm.IXKernelVmControl/default";
+    /** The service takes at most this much input per write. */
+    private static final int MAX_INPUT = 4096;
+    private static final long RENDER_DELAY_MS = 60;
 
     private final Handler mMain = new Handler(Looper.getMainLooper());
     /** Binder calls run here, in order, off the main thread. */
@@ -53,6 +74,26 @@ public class MainActivity extends Activity {
     private Button mStart;
     private Button mStop;
     private Button mReconnect;
+
+    private View mConsolePane;
+    private TextView mConsoleTitle;
+    private ScrollView mTerminalScroll;
+    private TextView mTerminalView;
+    private TextView mConsoleNote;
+    private EditText mInput;
+    private Button mSend;
+    private ViewGroupKeys mKeys;
+    private TerminalBuffer mTerminal;
+    /** The history of the current attachment has been applied. */
+    private boolean mConsoleSynced;
+    /** Pieces that arrived before the history they follow. */
+    private final ArrayList<ConsoleOutput> mConsolePending = new ArrayList<>();
+    private long mConsoleInstance = -1;
+    /** Offset just past the output shown. */
+    private long mConsoleEnd;
+    private boolean mRenderScheduled;
+    /** Keep the view at the newest output (the user has not scrolled back). */
+    private boolean mStickToEnd = true;
 
     private IXKernelVmControl mControl;
     private IBinder mBinder;
@@ -69,6 +110,15 @@ public class MainActivity extends Activity {
             mMain.post(() -> apply(status));
         }
     };
+
+    private final IXKernelVmConsoleCallback mConsoleCallback = new IXKernelVmConsoleCallback.Stub() {
+        @Override
+        public void onConsoleOutput(ConsoleOutput output) {
+            mMain.post(() -> onConsoleOutputPiece(output));
+        }
+    };
+
+    private final Runnable mRenderTerminal = this::renderTerminal;
 
     private final Runnable mTick = new Runnable() {
         @Override
@@ -93,6 +143,7 @@ public class MainActivity extends Activity {
         mStart.setOnClickListener(v -> request(true));
         mStop.setOnClickListener(v -> request(false));
         mReconnect.setOnClickListener(v -> connect());
+        setUpConsole();
     }
 
     @Override
@@ -141,6 +192,7 @@ public class MainActivity extends Activity {
                 mMain.post(() -> showError(e));
             }
         });
+        attachConsole(control);
     }
 
     private void disconnect() {
@@ -149,11 +201,14 @@ public class MainActivity extends Activity {
             mCalls.execute(() -> {
                 try {
                     control.unregisterCallback(mCallback);
+                    control.detachConsole(mConsoleCallback);
                 } catch (RemoteException | RuntimeException e) {
                     Log.i(TAG, "unregisterCallback failed", e);
                 }
             });
         }
+        mConsoleSynced = false;
+        mConsolePending.clear();
         if (mBinder != null) {
             mBinder.unlinkToDeath(mServiceDeath, 0);
         }
@@ -177,6 +232,9 @@ public class MainActivity extends Activity {
         mStart.setEnabled(false);
         mStop.setEnabled(false);
         mReconnect.setVisibility(View.VISIBLE);
+        mConsoleSynced = false;
+        mConsolePending.clear();
+        renderConsoleControls();
     }
 
     /** Accepts a snapshot unless it is older than the one shown. */
@@ -314,6 +372,7 @@ public class MainActivity extends Activity {
                 || s.state == VmState.RECLAIM_UNKNOWN;
         mStop.setEnabled(idle && stoppable);
         mStop.setText(s.state == VmState.RECLAIM_UNKNOWN ? R.string.recheck : R.string.stop);
+        renderConsoleControls();
     }
 
     /** The service's words for how an instance ended; unknown ones are shown as they are. */
@@ -331,5 +390,266 @@ public class MainActivity extends Activity {
 
     private void line(StringBuilder b, int label, String value) {
         b.append(getString(label)).append("：").append(value).append('\n');
+    }
+
+    // ---- Serial console ----------------------------------------------------------------------
+
+    /** A handle on the key buttons so they enable together. */
+    private static final class ViewGroupKeys {
+        final View[] views;
+
+        ViewGroupKeys(View... views) {
+            this.views = views;
+        }
+
+        void setEnabled(boolean enabled) {
+            for (View v : views) {
+                v.setEnabled(enabled);
+            }
+        }
+    }
+
+    private void setUpConsole() {
+        mConsolePane = findViewById(R.id.console_pane);
+        mConsoleTitle = findViewById(R.id.console_title);
+        mTerminalScroll = findViewById(R.id.terminal_scroll);
+        mTerminalView = findViewById(R.id.terminal);
+        mConsoleNote = findViewById(R.id.console_note);
+        mInput = findViewById(R.id.input);
+        mSend = findViewById(R.id.send);
+        mTerminal = new TerminalBuffer(this::sendToGuest);
+
+        mSend.setOnClickListener(v -> sendLine());
+        mInput.setOnEditorActionListener((v, actionId, event) -> {
+            boolean enter = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+            if (actionId == EditorInfo.IME_ACTION_SEND || enter) {
+                if (event == null || event.getAction() == KeyEvent.ACTION_DOWN) {
+                    sendLine();
+                }
+                return true;
+            }
+            return false;
+        });
+        Button ctrlC = findViewById(R.id.key_ctrl_c);
+        Button tab = findViewById(R.id.key_tab);
+        Button up = findViewById(R.id.key_up);
+        Button down = findViewById(R.id.key_down);
+        Button ctrlD = findViewById(R.id.key_ctrl_d);
+        Button clear = findViewById(R.id.key_clear);
+        // Ctrl-C and Ctrl-D drop what is typed but not sent; Tab sends it for completion.
+        ctrlC.setOnClickListener(v -> {
+            mInput.setText("");
+            sendToGuest(new byte[] {0x03});
+        });
+        ctrlD.setOnClickListener(v -> {
+            mInput.setText("");
+            sendToGuest(new byte[] {0x04});
+        });
+        tab.setOnClickListener(v -> sendTyped("\t"));
+        up.setOnClickListener(v -> sendToGuest("\033[A".getBytes(StandardCharsets.US_ASCII)));
+        down.setOnClickListener(v -> sendToGuest("\033[B".getBytes(StandardCharsets.US_ASCII)));
+        clear.setOnClickListener(v -> {
+            // Only this view: the guest and the kept output are unchanged.
+            mTerminal.reset();
+            mStickToEnd = true;
+            renderTerminal();
+        });
+        mKeys = new ViewGroupKeys(ctrlC, tab, up, down, ctrlD, mSend, mInput);
+
+        mTerminalScroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> mStickToEnd = atEnd());
+        mTerminalView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (mStickToEnd) {
+                scrollToEnd();
+            }
+        });
+
+        // Edge to edge: keep clear of the system bars, and of the keyboard, which then takes
+        // space from the state pane rather than from the console.
+        View root = findViewById(R.id.root);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsets.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            setWeight(mConsolePane, ime.bottom > 0 ? 2f : 1f);
+            return WindowInsets.CONSUMED;
+        });
+        renderConsoleControls();
+    }
+
+    private static void setWeight(View view, float weight) {
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) view.getLayoutParams();
+        if (lp.weight != weight) {
+            lp.weight = weight;
+            view.setLayoutParams(lp);
+        }
+    }
+
+    private void attachConsole(IXKernelVmControl control) {
+        mConsoleSynced = false;
+        mConsolePending.clear();
+        mCalls.execute(() -> {
+            try {
+                ConsoleOutput history = control.attachConsole(mConsoleCallback);
+                mMain.post(() -> onConsoleHistory(control, history));
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "attachConsole failed", e);
+                mMain.post(() -> showConsoleNote(getString(R.string.console_attach_failed,
+                        describe(e))));
+            }
+        });
+    }
+
+    private void onConsoleHistory(IXKernelVmControl control, ConsoleOutput history) {
+        if (control != mControl) {
+            return;
+        }
+        mTerminal.reset();
+        // Replayed output asked its questions long ago: nothing is answered from it.
+        mTerminal.feed(history.data, 0, false);
+        mConsoleInstance = history.instance;
+        mConsoleEnd = history.offset + history.data.length;
+        mConsoleSynced = true;
+        mStickToEnd = true;
+        ArrayList<ConsoleOutput> pending = new ArrayList<>(mConsolePending);
+        mConsolePending.clear();
+        for (ConsoleOutput piece : pending) {
+            onConsoleOutputPiece(piece);
+        }
+        renderConsoleControls();
+        scheduleRender();
+    }
+
+    private void onConsoleOutputPiece(ConsoleOutput piece) {
+        if (mControl == null) {
+            return;
+        }
+        if (!mConsoleSynced) {
+            mConsolePending.add(piece);
+            return;
+        }
+        if (piece.instance != mConsoleInstance) {
+            if (piece.instance < mConsoleInstance) {
+                return; // An earlier instance's late output.
+            }
+            if (piece.offset != 0) {
+                attachConsole(mControl); // Missed the start of a newer instance.
+                return;
+            }
+            mTerminal.reset();
+            mConsoleInstance = piece.instance;
+            mConsoleEnd = 0;
+            mStickToEnd = true;
+            renderConsoleControls();
+        }
+        long end = piece.offset + piece.data.length;
+        if (end <= mConsoleEnd) {
+            if (piece.data.length == 0) {
+                scheduleRender();
+            }
+            return;
+        }
+        if (piece.offset > mConsoleEnd) {
+            Log.i(TAG, "console gap at " + mConsoleEnd + ", attaching again");
+            attachConsole(mControl);
+            return;
+        }
+        mTerminal.feed(piece.data, (int) (mConsoleEnd - piece.offset), true);
+        mConsoleEnd = end;
+        scheduleRender();
+    }
+
+    private void scheduleRender() {
+        if (!mRenderScheduled) {
+            mRenderScheduled = true;
+            mMain.postDelayed(mRenderTerminal, RENDER_DELAY_MS);
+        }
+    }
+
+    private void renderTerminal() {
+        mRenderScheduled = false;
+        mTerminalView.setText(mTerminal.render());
+        if (mStickToEnd) {
+            scrollToEnd();
+        }
+    }
+
+    private boolean atEnd() {
+        View child = mTerminalScroll.getChildAt(0);
+        int slack = mTerminalView.getLineHeight() * 2;
+        return child.getBottom() - (mTerminalScroll.getScrollY() + mTerminalScroll.getHeight())
+                <= slack;
+    }
+
+    private void scrollToEnd() {
+        // ScrollView clamps to its content (a huge value overflows its clamp, so pass the content
+        // height); fullScroll() would move the focus off the input.
+        mTerminalScroll.post(() -> mTerminalScroll.scrollTo(0, mTerminalView.getHeight()));
+    }
+
+    private void renderConsoleControls() {
+        VmStatus s = mStatus;
+        boolean running = mControl != null && isRunning(s);
+        mKeys.setEnabled(running);
+        mInput.setHint(running ? R.string.console_hint : R.string.console_hint_not_running);
+        if (mControl == null || s == null) {
+            mConsoleTitle.setText(R.string.console_title_disconnected);
+        } else if (mConsoleInstance <= 0) {
+            mConsoleTitle.setText(R.string.console_title_none);
+        } else if (running && s.instance == mConsoleInstance) {
+            mConsoleTitle.setText(getString(R.string.console_title_running, mConsoleInstance));
+        } else {
+            mConsoleTitle.setText(getString(R.string.console_title_ended, mConsoleInstance));
+        }
+        if (running) {
+            mConsoleNote.setVisibility(View.GONE);
+        }
+    }
+
+    private void sendLine() {
+        sendTyped("\n");
+    }
+
+    /** Sends what is typed, then {@code end}, and empties the input line. */
+    private void sendTyped(String end) {
+        String text = mInput.getText().toString();
+        mInput.setText("");
+        sendToGuest((text + end).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void sendToGuest(byte[] data) {
+        IXKernelVmControl control = mControl;
+        if (control == null || !isRunning(mStatus)) {
+            return;
+        }
+        mStickToEnd = true;
+        mCalls.execute(() -> {
+            try {
+                for (int i = 0; i < data.length; i += MAX_INPUT) {
+                    control.writeConsole(
+                            Arrays.copyOfRange(data, i, Math.min(data.length, i + MAX_INPUT)));
+                }
+            } catch (ServiceSpecificException e) {
+                String note = e.errorCode == IXKernelVmControl.ERROR_NOT_RUNNING
+                        ? getString(R.string.console_not_running)
+                        : e.errorCode == IXKernelVmControl.ERROR_BUSY
+                                ? getString(R.string.console_busy, describe(e))
+                                : getString(R.string.console_failed, describe(e));
+                mMain.post(() -> showConsoleNote(note));
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "writeConsole failed", e);
+                mMain.post(() -> showConsoleNote(getString(R.string.console_failed,
+                        describe(e))));
+            }
+        });
+    }
+
+    private void showConsoleNote(String note) {
+        mConsoleNote.setText(note);
+        mConsoleNote.setVisibility(View.VISIBLE);
+    }
+
+    private static String describe(Exception e) {
+        return e.getMessage() == null ? e.toString() : e.getMessage();
     }
 }
