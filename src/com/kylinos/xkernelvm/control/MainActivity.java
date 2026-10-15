@@ -348,6 +348,8 @@ public class MainActivity extends Activity {
                 ? R.string.protection_none
                 : s.withoutFirmware ? R.string.protection_without_firmware
                         : R.string.protection_with_firmware));
+        line(d, R.string.label_launcher,
+                getString(s.viaAvf ? R.string.launcher_avf : R.string.launcher_direct));
         line(d, R.string.label_dice,
                 getString(s.diceAvailable ? R.string.dice_enabled : R.string.dice_disabled));
         line(d, R.string.label_memory, getString(R.string.memory_value, s.memoryMib));

@@ -24,6 +24,7 @@
     <string name="label_state">状态</string>
     <string name="label_reason">说明</string>
     <string name="label_protection">保护模式</string>
+    <string name="label_launcher">启动方式</string>
     <string name="label_dice">身份链</string>
     <string name="label_memory">配置内存</string>
     <string name="label_cpus">虚拟处理器</string>
@@ -34,6 +35,8 @@
     <string name="protection_without_firmware">受保护，无客户机固件（镜像未经固件认证）</string>
     <string name="protection_with_firmware">受保护，经客户机固件启动</string>
     <string name="protection_none">不受保护</string>
+    <string name="launcher_avf">经 AVF 创建</string>
+    <string name="launcher_direct">控制服务直接运行 crosvm（不经 AVF）</string>
     <string name="dice_disabled">未启用</string>
     <string name="dice_enabled">已启用</string>
     <string name="memory_value">%1$d MiB（配置值，不是实际占用）</string>
