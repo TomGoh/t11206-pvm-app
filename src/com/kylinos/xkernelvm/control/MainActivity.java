@@ -7,6 +7,7 @@ package com.kylinos.xkernelvm.control;
 
 import android.app.Activity;
 import android.graphics.Insets;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -68,14 +69,18 @@ public class MainActivity extends Activity {
     /** Binder calls run here, in order, off the main thread. */
     private final ExecutorService mCalls = Executors.newSingleThreadExecutor();
 
+    private View mStatePill;
+    private View mStateDot;
     private TextView mState;
+    private View mBanner;
     private TextView mMessage;
-    private TextView mDetails;
+    private View mDetailsPane;
+    private LinearLayout mDetails;
     private Button mStart;
     private Button mStop;
     private Button mReconnect;
 
-    private View mConsolePane;
+    private View mConsoleDot;
     private TextView mConsoleTitle;
     private ScrollView mTerminalScroll;
     private TextView mTerminalView;
@@ -94,6 +99,10 @@ public class MainActivity extends Activity {
     private boolean mRenderScheduled;
     /** Keep the view at the newest output (the user has not scrolled back). */
     private boolean mStickToEnd = true;
+    /** The keyboard is up: the page is laid out for typing. */
+    private boolean mTyping;
+    /** The console's start margin in the layout (beside the facts in landscape). */
+    private int mConsoleMargin;
 
     private IXKernelVmControl mControl;
     private IBinder mBinder;
@@ -134,8 +143,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        mStatePill = findViewById(R.id.state_pill);
+        mStateDot = findViewById(R.id.state_dot);
         mState = findViewById(R.id.state);
+        mBanner = findViewById(R.id.banner);
         mMessage = findViewById(R.id.message);
+        mDetailsPane = findViewById(R.id.details_pane);
         mDetails = findViewById(R.id.details);
         mStart = findViewById(R.id.start);
         mStop = findViewById(R.id.stop);
@@ -226,9 +239,16 @@ public class MainActivity extends Activity {
     private void showDisconnected(String message) {
         mStatus = null;
         mRequestPending = false;
-        mState.setText(message);
-        mMessage.setVisibility(View.GONE);
-        mDetails.setText("");
+        showState(getString(R.string.state_disconnected), Tone.ERROR);
+        mMessage.setText(message);
+        mBanner.setVisibility(View.VISIBLE);
+        mDetails.removeAllViews();
+        TextView empty = new TextView(this);
+        empty.setText(R.string.details_disconnected);
+        empty.setTextSize(14);
+        empty.setTextColor(getColor(R.color.text_secondary));
+        empty.setPadding(0, dp(10), 0, dp(4));
+        mDetails.addView(empty);
         mStart.setEnabled(false);
         mStop.setEnabled(false);
         mReconnect.setVisibility(View.VISIBLE);
@@ -248,7 +268,10 @@ public class MainActivity extends Activity {
         }
         mStatus = status;
         mRequestPending = false;
-        mReconnect.setVisibility(View.GONE);
+        if (mReconnect.getVisibility() == View.VISIBLE) {
+            mReconnect.setVisibility(View.GONE);
+            mBanner.setVisibility(View.GONE);
+        }
         render();
         mMain.removeCallbacks(mTick);
         if (mResumed && isRunning(status)) {
@@ -262,7 +285,7 @@ public class MainActivity extends Activity {
             return;
         }
         mRequestPending = true;
-        mMessage.setVisibility(View.GONE);
+        mBanner.setVisibility(View.GONE);
         render();
         mCalls.execute(() -> {
             try {
@@ -306,7 +329,8 @@ public class MainActivity extends Activity {
             text = getString(R.string.error_other, detail);
         }
         mMessage.setText(text);
-        mMessage.setVisibility(View.VISIBLE);
+        mReconnect.setVisibility(View.GONE);
+        mBanner.setVisibility(View.VISIBLE);
     }
 
     private static boolean isRunning(VmStatus s) {
@@ -328,45 +352,98 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** The color family of a state: the pill and the console's dot. */
+    private enum Tone {
+        RUNNING(R.color.state_running, R.color.state_running_bg),
+        BUSY(R.color.state_busy, R.color.state_busy_bg),
+        IDLE(R.color.state_idle, R.color.state_idle_bg),
+        ERROR(R.color.state_error, R.color.state_error_bg);
+
+        final int dot;
+        final int background;
+
+        Tone(int dot, int background) {
+            this.dot = dot;
+            this.background = background;
+        }
+    }
+
+    private static Tone toneOf(int state) {
+        switch (state) {
+            case VmState.RUNNING_NOT_READY:
+            case VmState.READY:
+                return Tone.RUNNING;
+            case VmState.STARTING:
+            case VmState.STOPPING:
+                return Tone.BUSY;
+            case VmState.STOPPED:
+                return Tone.IDLE;
+            default:
+                return Tone.ERROR;
+        }
+    }
+
+    private void showState(String label, Tone tone) {
+        mState.setText(label);
+        tint(mStatePill, getColor(tone.background));
+        tint(mStateDot, getColor(tone.dot));
+    }
+
+    /** Recolors a shape background (the drawables are shared, so mutate first). */
+    private static void tint(View view, int color) {
+        ((GradientDrawable) view.getBackground().mutate()).setColor(color);
+    }
+
     private void render() {
         VmStatus s = mStatus;
         if (s == null) {
             return;
         }
-        mState.setText(getString(R.string.label_state) + "：" + stateLabel(s.state));
+        // Without a handshake the service can never report the guest ready, so "running, not
+        // ready" is just "running"; the facts say why.
+        showState(s.state == VmState.RUNNING_NOT_READY && !s.readinessConfigured
+                ? getString(R.string.state_running) : stateLabel(s.state), toneOf(s.state));
 
-        StringBuilder d = new StringBuilder();
+        mDetails.removeAllViews();
         String reason = s.reason;
+        int reasonColor = toneOf(s.state) == Tone.ERROR ? R.color.state_error : R.color.state_busy;
         if ((reason == null || reason.isEmpty()) && s.state == VmState.RUNNING_NOT_READY
                 && !s.readinessConfigured) {
+            // Not a problem, only what this configuration can tell.
             reason = getString(R.string.not_ready_no_probe);
+            reasonColor = R.color.text_secondary;
         }
         if (reason != null && !reason.isEmpty()) {
-            line(d, R.string.label_reason, reason);
+            row(R.string.label_reason, reason, reasonColor);
         }
-        line(d, R.string.label_protection, getString(!s.protectedVm
-                ? R.string.protection_none
-                : s.withoutFirmware ? R.string.protection_without_firmware
-                        : R.string.protection_with_firmware));
-        line(d, R.string.label_launcher,
-                getString(s.viaAvf ? R.string.launcher_avf : R.string.launcher_direct));
-        line(d, R.string.label_dice,
-                getString(s.diceAvailable ? R.string.dice_enabled : R.string.dice_disabled));
-        line(d, R.string.label_memory, getString(R.string.memory_value, s.memoryMib));
-        line(d, R.string.label_cpus, getString(R.string.cpus_value, s.cpuCount));
         if (isRunning(s) && s.startedAtElapsedMs > 0) {
             long seconds = Math.max(0, SystemClock.elapsedRealtime() - s.startedAtElapsedMs) / 1000;
-            line(d, R.string.label_uptime,
-                    String.format("%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60));
+            row(R.string.label_uptime,
+                    String.format("%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60),
+                    0);
         }
+        boolean withoutFirmware = s.protectedVm && s.withoutFirmware;
+        row(R.string.label_protection, getString(!s.protectedVm
+                ? R.string.protection_none
+                : withoutFirmware ? R.string.protection_without_firmware
+                        : R.string.protection_with_firmware),
+                withoutFirmware ? getString(R.string.protection_without_firmware_note) : null, 0);
+        row(R.string.label_launcher,
+                getString(s.viaAvf ? R.string.launcher_avf : R.string.launcher_direct),
+                s.viaAvf ? null : getString(R.string.launcher_direct_note), 0);
+        row(R.string.label_memory, getString(R.string.memory_value, s.memoryMib),
+                getString(R.string.memory_note), 0);
+        row(R.string.label_cpus, getString(R.string.cpus_value, s.cpuCount), 0);
+        row(R.string.label_dice,
+                getString(s.diceAvailable ? R.string.dice_enabled : R.string.dice_disabled), 0);
         // While an instance starts or runs, "reclaim" would describe the current one, which is
         // not reclaimed by definition; the line is about the previous instance.
         if (s.state != VmState.STARTING && !isRunning(s)) {
-            line(d, R.string.label_reclaim, getString(
-                    s.reclaimConfirmed ? R.string.reclaim_confirmed : R.string.reclaim_unconfirmed));
+            row(R.string.label_reclaim, getString(
+                    s.reclaimConfirmed ? R.string.reclaim_confirmed : R.string.reclaim_unconfirmed),
+                    s.reclaimConfirmed ? 0 : R.color.state_error);
         }
-        line(d, R.string.label_last_exit, exitLabel(s.lastExit));
-        mDetails.setText(d.toString());
+        row(R.string.label_last_exit, exitLabel(s.lastExit), 0);
 
         boolean idle = !mRequestPending && mControl != null;
         mStart.setEnabled(idle && (s.state == VmState.STOPPED || s.state == VmState.FAILED));
@@ -390,8 +467,53 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void line(StringBuilder b, int label, String value) {
-        b.append(getString(label)).append("：").append(value).append('\n');
+    private void row(int label, String value, int color) {
+        row(label, value, null, color);
+    }
+
+    /**
+     * One fact: the label on the left, the value on the right with an optional smaller note under
+     * it; {@code color} 0 is the default.
+     */
+    private void row(int label, String value, String note, int color) {
+        if (mDetails.getChildCount() > 0) {
+            View divider = new View(this);
+            divider.setBackgroundColor(getColor(R.color.divider));
+            mDetails.addView(divider, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(10), 0, dp(10));
+        TextView name = new TextView(this);
+        name.setText(label);
+        name.setTextSize(14);
+        name.setTextColor(getColor(R.color.text_secondary));
+        row.addView(name, new LinearLayout.LayoutParams(dp(104),
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(14);
+        text.setTextColor(getColor(color != 0 ? color : R.color.text_primary));
+        text.setLineSpacing(dp(2), 1f);
+        LinearLayout values = new LinearLayout(this);
+        values.setOrientation(LinearLayout.VERTICAL);
+        values.addView(text);
+        if (note != null) {
+            TextView small = new TextView(this);
+            small.setText(note);
+            small.setTextSize(12);
+            small.setTextColor(getColor(R.color.text_secondary));
+            small.setPadding(0, dp(2), 0, 0);
+            values.addView(small);
+        }
+        row.addView(values, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        mDetails.addView(row);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     // ---- Serial console ----------------------------------------------------------------------
@@ -412,7 +534,9 @@ public class MainActivity extends Activity {
     }
 
     private void setUpConsole() {
-        mConsolePane = findViewById(R.id.console_pane);
+        mConsoleDot = findViewById(R.id.console_dot);
+        mConsoleMargin = ((LinearLayout.LayoutParams)
+                findViewById(R.id.console_pane).getLayoutParams()).getMarginStart();
         mConsoleTitle = findViewById(R.id.console_title);
         mTerminalScroll = findViewById(R.id.terminal_scroll);
         mTerminalView = findViewById(R.id.terminal);
@@ -465,26 +589,53 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Edge to edge: keep clear of the system bars, and of the keyboard, which then takes
-        // space from the state pane rather than from the console.
+        // Edge to edge: keep clear of the system bars and of the keyboard. While a full keyboard
+        // is up the header stays, the facts give way and the keys share the input line, so the
+        // terminal keeps as many lines as it can; nothing is squeezed into a cut-off pane.
         View root = findViewById(R.id.root);
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             Insets bars = insets.getInsets(
                     WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsets.Type.ime());
             v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
-            setWeight(mConsolePane, ime.bottom > 0 ? 2f : 1f);
+            // A full keyboard takes a large part of the screen; a floating one or its toolbar
+            // leaves room for the facts, which then stay.
+            int height = getResources().getDisplayMetrics().heightPixels;
+            setTyping(ime.bottom > height / 3);
             return WindowInsets.CONSUMED;
         });
         renderConsoleControls();
     }
 
-    private static void setWeight(View view, float weight) {
-        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) view.getLayoutParams();
-        if (lp.weight != weight) {
-            lp.weight = weight;
-            view.setLayoutParams(lp);
+    /** Lays the page out for typing (keyboard up) or for reading. */
+    private void setTyping(boolean typing) {
+        if (typing == mTyping) {
+            return;
         }
+        mTyping = typing;
+        mDetailsPane.setVisibility(typing ? View.GONE : View.VISIBLE);
+        // In landscape the console sits beside the facts; alone it starts at the page margin.
+        View console = findViewById(R.id.console_pane);
+        LinearLayout.LayoutParams cp = (LinearLayout.LayoutParams) console.getLayoutParams();
+        if (cp.getMarginStart() != 0 || !typing) {
+            cp.setMarginStart(typing ? 0 : mConsoleMargin);
+            console.setLayoutParams(cp);
+        }
+        LinearLayout footer = findViewById(R.id.console_footer);
+        View keys = findViewById(R.id.keys_scroll);
+        View input = findViewById(R.id.input_row);
+        footer.setOrientation(typing ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        keys.setLayoutParams(new LinearLayout.LayoutParams(
+                typing ? LinearLayout.LayoutParams.WRAP_CONTENT
+                        : LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams lp = typing
+                ? new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMarginStart(typing ? dp(4) : 0);
+        lp.topMargin = typing ? 0 : dp(10);
+        input.setLayoutParams(lp);
     }
 
     private void attachConsole(IXKernelVmControl control) {
@@ -594,6 +745,7 @@ public class MainActivity extends Activity {
         boolean running = mControl != null && isRunning(s);
         mKeys.setEnabled(running);
         mInput.setHint(running ? R.string.console_hint : R.string.console_hint_not_running);
+        tint(mConsoleDot, getColor(running ? R.color.state_running : R.color.state_idle));
         if (mControl == null || s == null) {
             mConsoleTitle.setText(R.string.console_title_disconnected);
         } else if (mConsoleInstance <= 0) {

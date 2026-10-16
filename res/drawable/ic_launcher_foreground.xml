@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's mark, inside the adaptive icon's 66dp safe zone: a shield (protected)
+     with an X (x-kernel) cut out of it. Also the monochrome layer of themed icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,29 L75,36.5 V53 C75,66.5 66.5,76 54,81 C41.5,76 33,66.5 33,53 V36.5 Z
+            M59.23,43.88 L63.62,48.27 L58.38,53.50 L63.62,58.73 L59.23,63.12 L54.00,57.88 L48.77,63.12 L44.38,58.73 L49.62,53.50 L44.38,48.27 L48.77,43.88 L54.00,49.12 Z" />
+</vector>

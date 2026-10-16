@@ -4,6 +4,11 @@
     <string name="permission_label">控制 X 内核虚拟机</string>
 
     <string name="title">X 内核受保护虚拟机</string>
+    <string name="subtitle">受保护虚拟机 · 由控制服务管理，离开本页不影响运行</string>
+    <string name="details_title">运行信息</string>
+    <string name="details_disconnected">连接控制服务后显示。</string>
+    <string name="state_disconnected">未连接</string>
+    <string name="console_device">ttyS0</string>
     <string name="start">启动</string>
     <string name="stop">停止</string>
     <string name="recheck">重新核实回收</string>
@@ -13,6 +18,8 @@
     <string name="state_stopped">已停止</string>
     <string name="state_starting">启动中</string>
     <string name="state_running_not_ready">运行中，服务未就绪</string>
+    <!-- Without a readiness handshake "not ready" is all the service can ever say. -->
+    <string name="state_running">运行中</string>
     <string name="state_ready">服务可用</string>
     <string name="state_stopping">停止中</string>
     <string name="state_reclaim_unknown">回收失败或状态待核实</string>
@@ -29,17 +36,20 @@
     <string name="label_memory">配置内存</string>
     <string name="label_cpus">虚拟处理器</string>
     <string name="label_uptime">运行时长</string>
-    <string name="label_reclaim">上一实例资源回收</string>
+    <string name="label_reclaim">上次资源回收</string>
     <string name="label_last_exit">上次结束原因</string>
 
-    <string name="protection_without_firmware">受保护，无客户机固件（镜像未经固件认证）</string>
+    <string name="protection_without_firmware">受保护，无客户机固件</string>
+    <string name="protection_without_firmware_note">镜像未经固件认证</string>
     <string name="protection_with_firmware">受保护，经客户机固件启动</string>
     <string name="protection_none">不受保护</string>
     <string name="launcher_avf">经 AVF 创建</string>
-    <string name="launcher_direct">控制服务直接运行 crosvm（不经 AVF）</string>
+    <string name="launcher_direct">直接运行 crosvm</string>
+    <string name="launcher_direct_note">由控制服务启动，不经 AVF</string>
     <string name="dice_disabled">未启用</string>
     <string name="dice_enabled">已启用</string>
-    <string name="memory_value">%1$d MiB（配置值，不是实际占用）</string>
+    <string name="memory_value">%1$d MiB</string>
+    <string name="memory_note">配置值，不是实际占用</string>
     <string name="cpus_value">%1$d 个</string>
     <string name="reclaim_confirmed">已确认</string>
     <string name="reclaim_unconfirmed">未确认</string>
@@ -47,7 +57,7 @@
     <string name="exit_stopped">按请求停止</string>
     <string name="exit_guest_shutdown">客户机自行关机</string>
     <string name="exit_killed">虚拟机进程被外部终止</string>
-    <string name="not_ready_no_probe">未配置就绪握手，不会显示为服务可用</string>
+    <string name="not_ready_no_probe">未配置就绪握手，所以只显示“运行中”，不会显示“服务可用”</string>
 
     <string name="error_unavailable">无法启动：%1$s</string>
     <string name="error_busy">正在执行相反的操作，请稍后再试：%1$s</string>
@@ -55,18 +65,18 @@
     <string name="error_security">没有控制权限：%1$s</string>
     <string name="error_other">请求失败：%1$s</string>
 
-    <string name="console_title_none">x-kernel 控制台：还没有启动过实例</string>
-    <string name="console_title_running">x-kernel 控制台：实例 %1$d</string>
-    <string name="console_title_ended">x-kernel 控制台：实例 %1$d 已结束，下面是它的输出</string>
-    <string name="console_title_disconnected">x-kernel 控制台：未连接控制服务</string>
+    <string name="console_title_none">控制台 · 还没有启动过实例</string>
+    <string name="console_title_running">控制台 · 实例 %1$d</string>
+    <string name="console_title_ended">控制台 · 实例 %1$d 已结束，下面是它的输出</string>
+    <string name="console_title_disconnected">控制台 · 未连接控制服务</string>
     <string name="console_hint">输入命令，回车发送</string>
     <string name="console_hint_not_running">虚拟机运行时才能输入</string>
     <string name="send">发送</string>
-    <string name="key_ctrl_c">Ctrl-C</string>
+    <string name="key_ctrl_c">Ctrl+C</string>
     <string name="key_tab">Tab</string>
     <string name="key_up">↑</string>
     <string name="key_down">↓</string>
-    <string name="key_ctrl_d">Ctrl-D</string>
+    <string name="key_ctrl_d">Ctrl+D</string>
     <string name="key_clear">清屏</string>
     <string name="console_not_running">虚拟机没有在运行，输入没有发出。</string>
     <string name="console_busy">客户机还没有读完之前的输入，这次输入没有全部发出：%1$s</string>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Page -->
+    <color name="page">#FFF2F4F7</color>
+    <color name="card">#FFFFFFFF</color>
+    <color name="card_stroke">#FFE2E6EC</color>
+    <color name="text_primary">#FF15202B</color>
+    <color name="text_secondary">#FF5B6675</color>
+    <color name="divider">#FFEDF0F4</color>
+    <color name="accent">#FF2563EB</color>
+    <color name="accent_pressed">#FF1D4ED8</color>
+    <color name="accent_disabled">#FFB8CBF5</color>
+    <!-- State colors: dot and pill background -->
+    <color name="state_running">#FF16A34A</color>
+    <color name="state_running_bg">#FFE3F6EA</color>
+    <color name="state_busy">#FFD97706</color>
+    <color name="state_busy_bg">#FFFDF1DC</color>
+    <color name="state_idle">#FF64748B</color>
+    <color name="state_idle_bg">#FFEDF0F4</color>
+    <color name="state_error">#FFDC2626</color>
+    <color name="state_error_bg">#FFFDE5E5</color>
+    <!-- Console -->
+    <color name="console">#FF0E1116</color>
+    <color name="console_bar">#FF171C23</color>
+    <color name="console_text">#FFD6DCE4</color>
+    <color name="console_muted">#FF8A94A3</color>
+    <color name="console_key">#FF232A33</color>
+    <color name="console_key_pressed">#FF313A46</color>
+    <color name="console_input">#FF1B2129</color>
+    <color name="console_note">#FFF4A6A6</color>
+</resources>

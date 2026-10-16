@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The state pill; its color is set from the state in code. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/state_idle_bg" />
+    <corners android:radius="999dp" />
+</shape>
