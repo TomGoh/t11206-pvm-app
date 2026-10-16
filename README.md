@@ -23,3 +23,7 @@ x-kernel 虚拟机的控制应用：一个页面，按需启动或停止 x-kerne
 ## 构建
 
 与 `t11206-pvm-service` 一起放进设备对应的 Android 源码树：`m XKernelVmControl`（依赖服务仓库的 `com.kylinos.xkernelvm-java`）。
+
+## 测试
+
+`host-tests/run.sh` 在开发机上测试终端模型 `TerminalBuffer`（需要 JDK 17 或更新版本）：输入取自客户机真实的控制台输出，`host-tests/stubs/` 里是它用到的几个安卓类的桩。GitHub 在每次推送和拉取请求时运行它（`.github/workflows/host-tests.yml`）；应用本身只能在 Android 源码树里编译，不在 CI 中构建。
