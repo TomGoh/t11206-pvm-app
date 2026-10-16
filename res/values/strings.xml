@@ -17,10 +17,10 @@
     <string name="state_unavailable">无法启动</string>
     <string name="state_stopped">已停止</string>
     <string name="state_starting">启动中</string>
-    <string name="state_running_not_ready">运行中，服务未就绪</string>
+    <string name="state_running_not_ready">运行中，等待就绪</string>
     <!-- Without a readiness handshake "not ready" is all the service can ever say. -->
     <string name="state_running">运行中</string>
-    <string name="state_ready">服务可用</string>
+    <string name="state_ready">已就绪</string>
     <string name="state_stopping">停止中</string>
     <string name="state_reclaim_unknown">回收失败或状态待核实</string>
     <string name="state_failed">启动失败或异常退出</string>
@@ -57,7 +57,8 @@
     <string name="exit_stopped">按请求停止</string>
     <string name="exit_guest_shutdown">客户机自行关机</string>
     <string name="exit_killed">虚拟机进程被外部终止</string>
-    <string name="not_ready_no_probe">未配置就绪握手，所以只显示“运行中”，不会显示“服务可用”</string>
+    <string name="not_ready_no_probe">没有配置就绪信号，所以只显示“运行中”，不会显示“已就绪”</string>
+    <string name="reason_ready_timed_out">在规定时间内没有等到客户机的就绪信号（串口上的 shell 提示符）</string>
 
     <string name="error_unavailable">无法启动：%1$s</string>
     <string name="error_busy">正在执行相反的操作，请稍后再试：%1$s</string>

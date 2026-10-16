@@ -401,11 +401,13 @@ public class MainActivity extends Activity {
         }
         // Without a handshake the service can never report the guest ready, so "running, not
         // ready" is just "running"; the facts say why.
+        boolean waiting = s.state == VmState.RUNNING_NOT_READY && s.readinessConfigured;
         showState(s.state == VmState.RUNNING_NOT_READY && !s.readinessConfigured
-                ? getString(R.string.state_running) : stateLabel(s.state), toneOf(s.state));
+                ? getString(R.string.state_running) : stateLabel(s.state),
+                waiting ? Tone.BUSY : toneOf(s.state));
 
         mDetails.removeAllViews();
-        String reason = s.reason;
+        String reason = reasonLabel(s.reason);
         int reasonColor = toneOf(s.state) == Tone.ERROR ? R.color.state_error : R.color.state_busy;
         if ((reason == null || reason.isEmpty()) && s.state == VmState.RUNNING_NOT_READY
                 && !s.readinessConfigured) {
@@ -452,6 +454,14 @@ public class MainActivity extends Activity {
         mStop.setEnabled(idle && stoppable);
         mStop.setText(s.state == VmState.RECLAIM_UNKNOWN ? R.string.recheck : R.string.stop);
         renderConsoleControls();
+    }
+
+    /** The service's reasons this page knows in Chinese; others are shown as they are. */
+    private String reasonLabel(String reason) {
+        if ("the readiness handshake timed out".equals(reason)) {
+            return getString(R.string.reason_ready_timed_out);
+        }
+        return reason;
     }
 
     /** The service's words for how an instance ended; unknown ones are shown as they are. */
