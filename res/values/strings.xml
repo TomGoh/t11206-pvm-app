@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">X 内核虚拟机</string>
     <string name="permission_label">控制 X 内核虚拟机</string>
+    <string name="read_stats_permission_label">读取 X 内核虚拟机与虚拟化层的处理器占用</string>
 
     <string name="title">X 内核受保护虚拟机</string>
     <string name="subtitle">受保护虚拟机 · 由控制服务管理，离开本页不影响运行</string>
