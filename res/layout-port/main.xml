@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-     Portrait: the header, the instance's facts, then the console. While the keyboard is up
-     the facts are hidden (MainActivity), so the console keeps a usable height.
+     Portrait: the header, the instance's facts, then the console. While the keyboard is up, or
+     the window is too low for both, the facts are hidden (MainActivity.showFacts), so the
+     console keeps a usable height.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"

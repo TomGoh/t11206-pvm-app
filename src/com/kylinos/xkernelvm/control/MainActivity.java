@@ -52,7 +52,9 @@ import java.util.concurrent.Executors;
  * Snapshots carry the service session and a sequence number, so a late or duplicate callback
  * never overwrites a newer state.
  *
- * <p>The bottom half is the guest's serial console, which the service keeps: attaching returns
+ * <p>Beside the facts (below them in portrait) is the guest's serial console; when the window is
+ * too small for both, or a full keyboard is up, the console shows alone. The service keeps the
+ * console: attaching returns
  * the output kept so far, and later output arrives addressed by instance and offset, so a
  * duplicate is dropped and a gap makes the app attach again. Input goes to the guest as typed
  * (a line is sent with a newline); the guest echoes it. Input is only enabled while the VM runs;
@@ -60,6 +62,9 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends Activity {
     private static final String TAG = "XKernelVmControl";
+    /** The narrowest console worth showing beside the facts, and the lowest below them. */
+    private static final int MIN_CONSOLE_WIDTH_DP = 360;
+    private static final int MIN_CONSOLE_HEIGHT_DP = 240;
     private static final String SERVICE_NAME = "com.kylinos.xkernelvm.IXKernelVmControl/default";
     /** The service takes at most this much input per write. */
     private static final int MAX_INPUT = 4096;
@@ -101,6 +106,8 @@ public class MainActivity extends Activity {
     private boolean mStickToEnd = true;
     /** The keyboard is up: the page is laid out for typing. */
     private boolean mTyping;
+    /** The window is too small for the facts and a usable console: the console alone shows. */
+    private boolean mCramped;
     /** The console's start margin in the layout (beside the facts in landscape). */
     private int mConsoleMargin;
 
@@ -614,7 +621,46 @@ public class MainActivity extends Activity {
             setTyping(ime.bottom > height / 3);
             return WindowInsets.CONSUMED;
         });
+        // A window made smaller (desktop freeform, split screen) keeps the console and lets the
+        // facts go. The panes' row is the measure: its size does not depend on the facts being
+        // shown, so hiding them cannot flip the decision back.
+        View panes = (View) mDetailsPane.getParent();
+        panes.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol || b - t != ob - ot) {
+                v.post(this::fitPanes);
+            }
+        });
         renderConsoleControls();
+    }
+
+    /** Hides the facts when the window cannot hold them beside (or above) a usable console. */
+    private void fitPanes() {
+        LinearLayout panes = (LinearLayout) mDetailsPane.getParent();
+        LinearLayout.LayoutParams facts = (LinearLayout.LayoutParams) mDetailsPane.getLayoutParams();
+        boolean sideBySide = panes.getOrientation() == LinearLayout.HORIZONTAL;
+        int room = sideBySide ? panes.getWidth() : panes.getHeight();
+        int needed = sideBySide
+                ? facts.width + mConsoleMargin + dp(MIN_CONSOLE_WIDTH_DP)
+                : facts.height + facts.bottomMargin + dp(MIN_CONSOLE_HEIGHT_DP);
+        boolean cramped = room > 0 && room < needed;
+        if (cramped != mCramped) {
+            mCramped = cramped;
+            showFacts();
+        }
+    }
+
+    /** The facts show unless the keyboard is up or the window is too small. */
+    private void showFacts() {
+        boolean hidden = mTyping || mCramped;
+        mDetailsPane.setVisibility(hidden ? View.GONE : View.VISIBLE);
+        // In landscape the console sits beside the facts; alone it starts at the page margin.
+        View console = findViewById(R.id.console_pane);
+        LinearLayout.LayoutParams cp = (LinearLayout.LayoutParams) console.getLayoutParams();
+        int margin = hidden ? 0 : mConsoleMargin;
+        if (cp.getMarginStart() != margin) {
+            cp.setMarginStart(margin);
+            console.setLayoutParams(cp);
+        }
     }
 
     /** Lays the page out for typing (keyboard up) or for reading. */
@@ -623,14 +669,7 @@ public class MainActivity extends Activity {
             return;
         }
         mTyping = typing;
-        mDetailsPane.setVisibility(typing ? View.GONE : View.VISIBLE);
-        // In landscape the console sits beside the facts; alone it starts at the page margin.
-        View console = findViewById(R.id.console_pane);
-        LinearLayout.LayoutParams cp = (LinearLayout.LayoutParams) console.getLayoutParams();
-        if (cp.getMarginStart() != 0 || !typing) {
-            cp.setMarginStart(typing ? 0 : mConsoleMargin);
-            console.setLayoutParams(cp);
-        }
+        showFacts();
         LinearLayout footer = findViewById(R.id.console_footer);
         View keys = findViewById(R.id.keys_scroll);
         View input = findViewById(R.id.input_row);

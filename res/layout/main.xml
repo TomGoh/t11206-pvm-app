@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
      Landscape (the tablet's usual orientation): a header with the state and the controls,
-     then the instance's facts on the left and the guest's console on the right. The
-     keyboard only shortens the body: the facts scroll, the console keeps its width.
+     then the instance's facts on the left and the guest's console on the right. While a full
+     keyboard is up, or the window is too narrow for both (desktop freeform, split screen), the
+     facts are hidden and the console takes the whole width (MainActivity.showFacts).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"

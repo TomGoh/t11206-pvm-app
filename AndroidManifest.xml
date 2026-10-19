@@ -14,8 +14,9 @@
     <uses-permission android:name="com.kylinos.xkernelvm.permission.CONTROL_VM" />
 
     <!-- Checked by the control service's read-only monitoring interface (EL2 cycles per CPU, the
-         VM's CPU time), for monitor apps that must not control the VM. Platform-signed and
-         allowlisted privileged apps get it; on a development device `pm grant` gives it. -->
+         VM's CPU time), for monitor apps that must not control the VM. Platform-signed apps and
+         privileged apps (priv-app; no privapp-permissions entry needed) hold it from boot; on a
+         development device `pm grant` gives it to an app installed with adb. -->
     <permission
         android:name="com.kylinos.xkernelvm.permission.READ_VM_STATS"
         android:label="@string/read_stats_permission_label"
