@@ -33,9 +33,12 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden"
             android:windowSoftInputMode="adjustResize|stateHidden">
+            <!-- No LAUNCHER category: the product controls the VM from Settings (developer
+                 options), so the app has no home-screen icon. It stays installed because it
+                 declares the two permissions above; the activity can still be opened with
+                 am start for debugging. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
